@@ -11,6 +11,16 @@ contour_end_groups = []
 open_space_points = []
 pairs = []
 
+def is_circle_valid(x, y, dilated_map):
+    for angle in range(0, 360, 10):  # Check 30 degree points around the circle
+        rad = np.radians(angle)
+        check_x = int(x + 15 * np.cos(rad))
+        check_y = int(y + 15 * np.sin(rad))
+
+        if dilated_map[check_y, check_x] == 1:  # White
+            return False
+    return True
+
 def process_image(map):
     # Convert to grayscale if it's not already
     if len(map.shape) == 3:  # If the map has color channels
@@ -25,10 +35,14 @@ def process_image(map):
     edges = cv.Canny(binary_map, 75, 150, apertureSize=3)
 
     # Dilate edges
-    kernel = np.ones((3, 3), np.uint8)
-    dilated_map = cv.dilate(edges, kernel, iterations=5)
+    kernel = np.ones((5, 5), np.uint8)
+    dilated_map = cv.dilate(edges, kernel, iterations=4)
+    #erroded_map = cv.erode(dilated_map, kernel, iterations=10)
     kernel = np.ones((5, 5), np.uint8)
     dilated_map = cv.morphologyEx(dilated_map, cv.MORPH_CLOSE, kernel)
+
+    cv.imshow("Dilaated Img", dilated_map)
+    cv.waitKey(0)
     
     approx_map = np.zeros(map.shape, dtype='uint8')
 
@@ -48,7 +62,7 @@ def process_image(map):
             cv.drawContours(approx_map, [contour], -1, 255, 1)
             filtered_contours.append(contour)
 
-    return approx_map, approx_points, contours, filtered_contours
+    return approx_map, approx_points, contours, filtered_contours, dilated_map
 
 def calculate_angle(pt1, pt2, pt3):
     pt1 = pt1.ravel()
@@ -125,13 +139,15 @@ def find_closest_pairs(points):
         pairs.append((point1, closest_point))
     return pairs
 
-def find_open_space_points(pairs):
+def find_open_space_points(pairs, dilated_map):
     global open_space_points
     print("in function pairs ", pairs)
     for i in range(len(pairs)):
         x = int((pairs[i][0][0] + pairs[i][1][0]) / 2)
         y = int((pairs[i][0][1] + pairs[i][1][1]) / 2)
-        open_space_points.append((x, y))
+        
+        if is_circle_valid(x, y, dilated_map):
+            open_space_points.append((x, y))
 
     print("In Function", open_space_points)
 
@@ -164,7 +180,7 @@ def main(map, current_position):
     print("Image loaded successfully.")
     cv.imshow("A_star", map)
 
-    approx_map, approx_points, contours, filtered_contours = process_image(map)
+    approx_map, approx_points, contours, filtered_contours, dilated_map = process_image(map)
     contours = filtered_contours
     
     find_corners(approx_points)
@@ -173,7 +189,7 @@ def main(map, current_position):
     averaged_ends = [average_points(contour_end_group) for contour_end_group in contour_end_groups]
 
     pairs = find_closest_pairs(averaged_ends)
-    find_open_space_points(pairs)
+    find_open_space_points(pairs, dilated_map)
 
     next_position = find_next_position(current_position)
 
@@ -188,13 +204,19 @@ def main(map, current_position):
     cv.circle(approx_map, tuple(current_position), 15, [0, 255, 0], -1)
     cv.circle(approx_map, tuple(next_position), 15, [0, 0, 255], -1)
 
-    print(current_position)
-
     cv.imshow("A_star", approx_map)
     cv.waitKey(0)
 
+    print(current_position)
+
     path = astar.a_star_pathfinding(current_position, next_position, contours, approx_map)
     path = path[::25]
+    path.append(next_position)
+
+    cv.imshow("A_star", approx_map)
+    print("Path", path)
+
+    cv.waitKey(50)
 
     show_path(path, approx_map)
 
