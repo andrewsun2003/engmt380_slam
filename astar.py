@@ -6,7 +6,7 @@ import numpy as np
 import heapq
 
 
-def get_neighbors(node, map, contours, square_size=1, clearance=28):
+def get_neighbors(node, map, contours, square_size=1, clearance=15):
     neighbors = []
     x, y = node
 
