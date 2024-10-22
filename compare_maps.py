@@ -4,34 +4,110 @@ import bot_math as bm
 import math
 
 
+def process_maps(current_map, previous_map):
+    mask = (current_map != [0, 0, 0]).any(axis=-1)
+    current_map[mask] = [255, 255, 255]  # Set non-black pixels to white
+    
+    _, binary_map = cv.threshold(current_map, 127, 255, cv.THRESH_BINARY)
+    edges = cv.Canny(binary_map, 75, 150, apertureSize=3)
+    current_map = cv.dilate(edges, np.ones((3, 3), np.uint8), iterations=10)
+    current_map = cv.erode(current_map, np.ones((3, 3), np.uint8), iterations=10)
+    
+    contours, hierarchy = cv.findContours(current_map, cv.RETR_CCOMP, cv.CHAIN_APPROX_NONE)
+    
+    current_map = np.zeros(current_map.shape, dtype='uint8')
+    keep_contours = []
+    for contour in contours:
+        if cv.contourArea(contour) > 500:
+            keep_contours.append(contour)
+    for contour in keep_contours:
+        cv.drawContours(current_map, contour, -1, 255, 4)
+    
+    current_map = cv.cvtColor(current_map, cv.COLOR_GRAY2BGR)
+
+    mask = (previous_map != [0, 0, 0]).any(axis=-1)
+    previous_map[mask] = [255, 255, 255]  # Set non-black pixels to white
+    _, binary_map = cv.threshold(previous_map, 127, 255, cv.THRESH_BINARY)
+    edges = cv.Canny(binary_map, 75, 150, apertureSize=3)
+    previous_map = cv.dilate(edges, np.ones((3, 3), np.uint8), iterations=10)
+    previous_map = cv.erode(previous_map, np.ones((3, 3), np.uint8), iterations=10)
+    
+    contours, hierarchy = cv.findContours(previous_map, cv.RETR_CCOMP, cv.CHAIN_APPROX_NONE)
+    
+    previous_map = np.zeros(previous_map.shape, dtype='uint8')
+    keep_contours = []
+    for contour in contours:
+        if cv.contourArea(contour) > 500:
+            keep_contours.append(contour)
+    for contour in keep_contours:
+        cv.drawContours(previous_map, contour, -1, 255, 4)
+    
+    previous_map = cv.cvtColor(previous_map, cv.COLOR_GRAY2BGR) 
+    
+    return current_map, previous_map
+
+
 def landmarks_from_global(input_image):
 
-	landmarks = []
+    landmarks = []
 
-	try:
-		image = cv.cvtColor(input_image, cv.COLOR_BGR2GRAY)
-	except:
-		image = input_image.copy()
+    try:
+        image = cv.cvtColor(input_image, cv.COLOR_BGR2GRAY)
+    except:
+        image = input_image.copy()
 
-	harris_corners = cv.cornerHarris(image, 20, 11, 0.24)
-	ret, harris_corners = cv.threshold(harris_corners, 127, 255, cv.THRESH_BINARY)
-	harris_corners = harris_corners.astype(np.uint8)
-	
-	contours, hierarchy = cv.findContours(harris_corners, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+    harris_corners = cv.cornerHarris(image, 30, 11, 0.15)
+    ret, harris_corners = cv.threshold(harris_corners, 127, 255, cv.THRESH_BINARY)
+    harris_corners = harris_corners.astype(np.uint8)
 
-	for contour in contours:
-		moment = cv.moments(contour)
-		try:
-			cx = int(moment["m10"] / moment["m00"])
-			cy = int(moment["m01"] / moment["m00"])
-		
-			landmarks.append([cx, cy])	
-			
-			image[int(cy)][int(cx)] = 200
-		except:
-			continue
+    contours, hierarchy = cv.findContours(harris_corners, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
 
-	return landmarks
+    # Filter contours based on area
+    contours = [contour for contour in contours if cv.contourArea(contour) > 500]
+
+    for contour in contours:
+        moment = cv.moments(contour)
+        try:
+            cx = int(moment["m10"] / moment["m00"])
+            cy = int(moment["m01"] / moment["m00"])
+        
+            landmarks.append([cx, cy])	
+            
+            image[int(cy)][int(cx)] = 200
+        except:
+            continue
+
+    return landmarks
+
+
+def match_landmarks(landmarks_current, landmarks_previous):
+    if len(landmarks_current) <= len(landmarks_previous):	
+        previous_array = []
+        for point1 in landmarks_current:
+            min_distance = float('inf')
+            for i, point2 in enumerate(landmarks_previous):
+                distance = bm.distance(point1, point2)
+                if distance < min_distance:
+                    min_distance = distance
+                    min_index = i
+            previous_array.append(landmarks_previous[min_index])
+            
+        landmarks_previous = previous_array
+
+    elif len(landmarks_current) > len(landmarks_previous):	
+        current_array = []
+        for point1 in landmarks_previous:
+            min_distance = float('inf')
+            for i, point2 in enumerate(landmarks_current):
+                distance = bm.distance(point1, point2)
+                if distance < min_distance:
+                    min_distance = distance
+                    min_index = i
+            current_array.append(landmarks_current[min_index])
+            
+        landmarks_current = current_array
+        
+    return landmarks_current, landmarks_previous
 
 
 def estimate_transformation(landmarks_current, landmarks_previous):
@@ -66,30 +142,16 @@ def combine_maps(current_map, previous_map, transformation_matrix):
 
 
 # Step 1: Load an image
-current_map = cv.imread('current_map.png')  # Replace with your image path
-mask = (current_map != [0, 0, 0]).any(axis=-1)
-current_map[mask] = [255, 255, 255]  # Set non-black pixels to white
+current_map = cv.imread('Current Map.png')  # Replace with your image path
+previous_map = cv.imread('Previous Map.png')  # Replace with your image path
+current_map, previous_map = process_maps(current_map, previous_map)
 
-previous_map = cv.imread('previous_map.png')  # Replace with your image path
-mask = (previous_map != [0, 0, 0]).any(axis=-1)
-previous_map[mask] = [255, 255, 255]  # Set non-black pixels to white
 
 landmarks_current = landmarks_from_global(current_map)
 landmarks_previous = landmarks_from_global(previous_map)
 
-previous_array = []
-for point1 in landmarks_current:
-    min_distance = float('inf')
-    for i, point2 in enumerate(landmarks_previous):
-        distance = bm.distance(point1, point2)
-        if distance < min_distance:
-            min_distance = distance
-            min_index = i
-    previous_array.append(landmarks_previous[min_index])
-	
-landmarks_previous = previous_array
+landmarks_current, landmarks_previous = match_landmarks(landmarks_current, landmarks_previous)
 
-# Estimate transformation (translation, rotation) between the two sets of landmarks
 offset, transformation_matrix = estimate_transformation(landmarks_current, landmarks_previous)
 combined_map = combine_maps(current_map, previous_map, transformation_matrix)
 
@@ -98,16 +160,15 @@ for point in landmarks_current:
 for point in landmarks_previous:
 	cv.circle(previous_map, point, 5, 255, -1)
 
-#combined_map = process_map(combined_map)
 combined_map = cv.cvtColor(combined_map, cv.COLOR_BGR2GRAY)
-#_, combined_map = cv.threshold(combined_map, 150, 255, cv.THRESH_BINARY)
-#edges = cv.Canny(combined_map, 75, 150, apertureSize=3)
-#dilated_map = cv.dilate(edges, (3, 3), iterations=5)
-#combined_map = cv.dilate(dilated_map, (3,3), iterations=5)
+_, binary_map = cv.threshold(combined_map, 100, 255, cv.THRESH_BINARY)
+edges = cv.Canny(binary_map, 75, 150, apertureSize=3)
+combined_map = cv.dilate(edges, np.ones((3, 3), np.uint8), iterations=10)
+combined_map = cv.erode(combined_map, np.ones((3, 3), np.uint8), iterations=10)
+
+combined_map = cv.bitwise_not(combined_map)
 
 # Step 7: Display the result
-cv.imshow('Current Map', current_map)
-cv.imshow('Previous Map', previous_map)
 cv.imshow('Combined Map', combined_map)
 cv.waitKey(0)
 cv.destroyAllWindows()
