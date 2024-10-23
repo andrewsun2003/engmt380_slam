@@ -4,53 +4,6 @@ import bot_math as bm
 import math
 
 
-def process_maps(current_map, previous_map):
-    kernel = np.ones((3, 3), np.uint8)
-    mask = (current_map != [0, 0, 0]).any(axis=-1)
-    current_map[mask] = [255, 255, 255]
-
-    #current_map = cv.morphologyEx(current_map, cv.MORPH_CLOSE, kernel)
-    _, binary_map = cv.threshold(current_map, 127, 255, cv.THRESH_BINARY)
-    edges = cv.Canny(binary_map, 75, 150, apertureSize=3)
-    current_map = cv.dilate(edges, np.ones((3, 3), np.uint8), iterations=5)
-    current_map = cv.erode(current_map, np.ones((3, 3), np.uint8), iterations=10)
- 
-    contours, hierarchy = cv.findContours(current_map, cv.RETR_CCOMP, cv.CHAIN_APPROX_NONE)
-
-    current_map = np.zeros(current_map.shape, dtype='uint8')
-    keep_contours = []
-    for contour in contours:
-        if cv.contourArea(contour) > 500:
-            keep_contours.append(contour)
-    for contour in keep_contours:
-        cv.drawContours(current_map, contour, -1, 255, 4)
-
-    current_map = cv.cvtColor(current_map, cv.COLOR_GRAY2BGR)
-
-    mask = (previous_map != [0, 0, 0]).any(axis=-1)
-    previous_map[mask] = [255, 255, 255]  # Set non-black pixels to white
-
-    #previous_map = cv.morphologyEx(previous_map, cv.MORPH_CLOSE, kernel)
-    _, binary_map = cv.threshold(previous_map, 127, 255, cv.THRESH_BINARY)
-    edges = cv.Canny(binary_map, 75, 150, apertureSize=3)
-    previous_map = cv.dilate(edges, np.ones((3, 3), np.uint8), iterations=10)
-    previous_map = cv.erode(previous_map, np.ones((3, 3), np.uint8), iterations=10)
-    
-    contours, hierarchy = cv.findContours(previous_map, cv.RETR_CCOMP, cv.CHAIN_APPROX_NONE)
-    
-    previous_map = np.zeros(previous_map.shape, dtype='uint8')
-    keep_contours = []
-    for contour in contours:
-        if cv.contourArea(contour) > 500:
-            keep_contours.append(contour)
-    for contour in keep_contours:
-        cv.drawContours(previous_map, contour, -1, 255, 4)
-    
-    previous_map = cv.cvtColor(previous_map, cv.COLOR_GRAY2BGR) 
-    
-    return current_map, previous_map
-
-
 def landmarks_from_global(input_image):
 
     landmarks = []
@@ -145,32 +98,39 @@ def combine_maps(current_map, previous_map, transformation_matrix):
     return combined_map
 
 
-def main(current_map, previous_map):
-    # Step 1: Load an image
-    current_map, previous_map = process_maps(current_map, previous_map)
+# Step 1: Load an image
+current_map = cv.imread('example1.png')  # Replace with your image path
+current_map = cv.cvtColor(current_map, cv.COLOR_BGR2GRAY)
+_, binary_map = cv.threshold(current_map, 10, 255, cv.THRESH_BINARY)
+current_map = cv.cvtColor(binary_map, cv.COLOR_GRAY2BGR)
+
+previous_map = cv.imread('example1_2ndscan.png')
+previous_map = cv.cvtColor(previous_map, cv.COLOR_BGR2GRAY)
+_, binary_map = cv.threshold(previous_map, 10, 255, cv.THRESH_BINARY)
+previous_map = cv.cvtColor(binary_map, cv.COLOR_GRAY2BGR)
+
+landmarks_current = landmarks_from_global(current_map)
+landmarks_previous = landmarks_from_global(previous_map)
+
+landmarks_current, landmarks_previous = match_landmarks(landmarks_current, landmarks_previous)
+
+offset, transformation_matrix = estimate_transformation(landmarks_current, landmarks_previous)
+combined_map = combine_maps(current_map, previous_map, transformation_matrix)
+
+for point in landmarks_current:
+	cv.circle(current_map, point, 5, 255, -1)
+for point in landmarks_previous:
+	cv.circle(previous_map, point, 5, 255, -1)
+ 
+
+combined_map = cv.cvtColor(combined_map, cv.COLOR_BGR2GRAY)
+_, binary_map = cv.threshold(combined_map, 254, 255, cv.THRESH_BINARY)
+combined_map = cv.cvtColor(binary_map, cv.COLOR_GRAY2BGR)
 
 
-    landmarks_current = landmarks_from_global(current_map)
-    landmarks_previous = landmarks_from_global(previous_map)
-
-    landmarks_current, landmarks_previous = match_landmarks(landmarks_current, landmarks_previous)
-
-    offset, transformation_matrix = estimate_transformation(landmarks_current, landmarks_previous)
-    combined_map = combine_maps(current_map, previous_map, transformation_matrix)
-
-    for point in landmarks_current:
-        cv.circle(current_map, point, 5, 255, -1)
-    for point in landmarks_previous:
-        cv.circle(previous_map, point, 5, 255, -1)
-
-    combined_map = cv.cvtColor(combined_map, cv.COLOR_BGR2GRAY)
-    _, binary_map = cv.threshold(combined_map, 100, 255, cv.THRESH_BINARY)
-    edges = cv.Canny(binary_map, 75, 150, apertureSize=3)
-    combined_map = cv.dilate(edges, np.ones((3, 3), np.uint8), iterations=10)
-    combined_map = cv.erode(combined_map, np.ones((3, 3), np.uint8), iterations=10)
-
-    combined_map = cv.bitwise_not(combined_map)
-
-    combined_map = cv.cvtColor(combined_map, cv.COLOR_GRAY2BGR)
-
-    return combined_map, current_map, previous_map
+# Step 7: Display the result
+cv.imshow('Combined Map', combined_map)
+cv.imshow('current map', current_map)
+cv.imshow('previous map', previous_map)
+cv.waitKey(0)
+cv.destroyAllWindows()
