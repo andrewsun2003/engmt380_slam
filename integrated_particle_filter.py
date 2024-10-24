@@ -12,7 +12,7 @@ from sklearn.cluster import DBSCAN
 # Global variables
 mm_per_pix = 10
 bot_diameter_mm = 350
-num_particles = 10000  # Number of particles
+num_particles = 3000  # Number of particles
 radius = int(bot_diameter_mm / mm_per_pix / 2)  # Circle radius
 width, height = 0, 0  # To be defined later
 threshold_img = None  # To be defined later
@@ -25,7 +25,7 @@ initial_angle = 0
 # Function to check if a circle is valid
 @njit
 def is_circle_valid(x, y):
-    for angle in range(0, 360, 30):  # Check 30 degree points around the circle
+    for angle in range(0, 360, 10):  # Check 30 degree points around the circle
         rad = np.radians(angle)
         check_x = int(x + radius * np.cos(rad))
         check_y = int(y + radius * np.sin(rad))
@@ -143,7 +143,7 @@ def move_particles(particles, distance, delta_theta):
 
     return np.array(valid_particles)
 
-def count_clusters(particles, eps=3):  # Adjust eps based on your scale
+def count_clusters(particles, eps=10):  # Adjust eps based on your scale
     if len(particles) == 0:
         return 0
     
@@ -172,8 +172,8 @@ def get_pose(bot_pose):
     while int(current_angle) % int(step_angle) != 0:
         mv.rotate_left()
         current_angle = sb.imuYaw
-        print(current_angle)
-        print("Initial Angle", int(initial_angle))
+        #print(current_angle)
+        #print("Initial Angle", int(initial_angle))
         cv.waitKey(1)
     
     while int(current_angle) % int(step_angle) == 0:
@@ -248,7 +248,7 @@ def filter(img, initial_pos, initial_angle):
             delta_x = (bot_pose[0] - prev_pose[0]) / mm_per_pix   # Convert from mm to pixels
             delta_y = (bot_pose[1] - prev_pose[1]) / mm_per_pix
             delta_theta = bot_pose[2] - prev_pose[2]
-            print(-delta_theta)
+            #print(-delta_theta)
             #cv.waitKey(0)
             distance = np.sqrt(delta_x**2 + delta_y**2)
             particles = move_particles(particles, distance, -delta_theta)
@@ -256,9 +256,8 @@ def filter(img, initial_pos, initial_angle):
         particles, weights = find_best(particles, scan_data, threshold)
 
         #print(scan_data)
-        print(weights)
+        #print(weights)
         print(threshold)
-        cv.waitKey(0)
 
         if particles.shape[0] == 0:
             print("No best particles.")
@@ -267,7 +266,7 @@ def filter(img, initial_pos, initial_angle):
 
         if len(particles) < 100:
             particles = resample_particles(particles, weights)
-            threshold += 0.01  # Increase threshold everytime we resample
+            threshold += 0  # Increase threshold everytime we resample
             if threshold > 0.5:
                 threshold = 0.5   # Limit the threshold
             print(threshold)
@@ -275,9 +274,13 @@ def filter(img, initial_pos, initial_angle):
             # Check for clusters
             num_clusters = count_clusters(particles)
             if num_clusters <= 1:
-                print("Only one cluster left. Exiting...")
-                cv.waitKey(0)
-                return
+                print("Only one cluster left")
+                # Average the particles' positions and angles
+                av_x = np.mean(particles[:, 0])  # Average x positions
+                av_y = np.mean(particles[:, 1])  # Average y positions
+                av_angle = np.mean(particles[:, 2])  # Average angles
+
+                return av_x, av_y, av_angle
 
         draw_circles(particles)
         
