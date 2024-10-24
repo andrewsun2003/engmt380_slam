@@ -22,7 +22,7 @@ cv.imshow("edges", edges)
 cv.waitKey(0)
 
 contours, hierarchy = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_TC89_KCOS)
-filtered_contours = []
+filtered_cone = []
 
 contour_map = np.ones(map.shape, dtype='uint8')*255
 for contour in contours:
@@ -31,7 +31,7 @@ for contour in contours:
         print(perimeter)
         perimeter = cv.arcLength(contour, True)
         cv.drawContours(contour_map, [contour], -1, 0, thickness=-1)
-        filtered_contours.append(contour)
+        filtered_cone.append(contour)
 
 cv.imshow("contours", contour_map)
 cv.waitKey(0)
