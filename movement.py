@@ -12,7 +12,7 @@ def move_to_next_position(current_position, next_position, set_point):
     global l_prev, r_prev, ticks_per_meter
 
 
-    ticks_per_meter = 7100
+    ticks_per_meter = 9350
     linear_velocity = 0.2
     l_init = sb.encLeft
     r_init = sb.encRight
@@ -59,7 +59,7 @@ def rotate_left():
 
 def rotate_right():
     sb.moveBot(0, -0.2)
-    print("Left")
+    print("Right")
 
 def stop_moving():
      sb.moveBot(0, 0)
