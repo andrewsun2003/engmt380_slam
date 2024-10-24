@@ -38,7 +38,6 @@ def landmarks_from_global(input_image):
 
 
 def match_landmarks(landmarks_current, landmarks_previous):
-    
     if len(landmarks_current) == len(landmarks_previous):
         print('1')	
         previous_array = []
@@ -53,7 +52,7 @@ def match_landmarks(landmarks_current, landmarks_previous):
             for i, point2 in enumerate(landmarks_previous):
                 distance = bm.distance(point1, point2)
                 print(point1, point2, distance)
-                if distance < min_distance and distance < 200:
+                if distance < min_distance and distance < 80:
                     min_distance = distance
                     min_index = i
                     flag = 1
@@ -132,44 +131,33 @@ def combine_maps(current_map, previous_map, transformation_matrix):
     
     return combined_map
 
+def main(current_map, previous_map):
+    # Step 1: Load an image
+    current_map = cv.cvtColor(current_map, cv.COLOR_BGR2GRAY)
+    _, binary_map = cv.threshold(current_map, 10, 255, cv.THRESH_BINARY)
+    current_map = cv.cvtColor(binary_map, cv.COLOR_GRAY2BGR)
 
-# Step 1: Load an image
-current_map = cv.imread('current1.png')  # Replace with your image path
-current_map = cv.cvtColor(current_map, cv.COLOR_BGR2GRAY)
-_, binary_map = cv.threshold(current_map, 10, 255, cv.THRESH_BINARY)        
-current_map = cv.cvtColor(binary_map, cv.COLOR_GRAY2BGR)
+    previous_map = cv.cvtColor(previous_map, cv.COLOR_BGR2GRAY)
+    _, binary_map = cv.threshold(previous_map, 10, 255, cv.THRESH_BINARY)
+    previous_map = cv.cvtColor(binary_map, cv.COLOR_GRAY2BGR)
 
-previous_map = cv.imread('previous1.png')
-previous_map = cv.cvtColor(previous_map, cv.COLOR_BGR2GRAY)
-_, binary_map = cv.threshold(previous_map, 10, 255, cv.THRESH_BINARY)
-previous_map = cv.cvtColor(binary_map, cv.COLOR_GRAY2BGR)
+    landmarks_current = landmarks_from_global(current_map)
+    landmarks_previous = landmarks_from_global(previous_map)
 
-landmarks_current = landmarks_from_global(current_map)
-landmarks_previous = landmarks_from_global(previous_map)
-print(landmarks_current)
-print(landmarks_previous)
+    landmarks_current, landmarks_previous = match_landmarks(landmarks_current, landmarks_previous)
 
-for point in landmarks_current:
-	cv.circle(current_map, point, 5, 255, -1)
-for point in landmarks_previous:
-	cv.circle(previous_map, point, 5, 255, -1)
+    offset, transformation_matrix = estimate_transformation(landmarks_current, landmarks_previous)
 
-landmarks_current, landmarks_previous = match_landmarks(landmarks_current, landmarks_previous)
-print(landmarks_current)
-print(landmarks_previous)
+    combined_map = combine_maps(current_map, previous_map, transformation_matrix)
 
-offset, transformation_matrix = estimate_transformation(landmarks_current, landmarks_previous)
-combined_map = combine_maps(current_map, previous_map, transformation_matrix)
- 
-
-combined_map = cv.cvtColor(combined_map, cv.COLOR_BGR2GRAY)
-_, binary_map = cv.threshold(combined_map, 254, 255, cv.THRESH_BINARY)
-combined_map = cv.cvtColor(binary_map, cv.COLOR_GRAY2BGR)
+    for point in landmarks_current:
+        cv.circle(current_map, point, 5, 255, -1)
+    for point in landmarks_previous:
+        cv.circle(previous_map, point, 5, 255, -1)
+    
+    combined_map = cv.cvtColor(combined_map, cv.COLOR_BGR2GRAY)
+    _, binary_map = cv.threshold(combined_map, 254, 255, cv.THRESH_BINARY)
+    combined_map = cv.cvtColor(binary_map, cv.COLOR_GRAY2BGR)
 
 
-# Step 7: Display the result
-cv.imshow('Combined Map', combined_map)
-cv.imshow('current map', current_map)
-cv.imshow('previous map', previous_map)
-cv.waitKey(0)
-cv.destroyAllWindows()
+    return combined_map, current_map, previous_map
