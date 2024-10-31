@@ -9,7 +9,6 @@ import slamBotHD as sb
 import movement as mv
 from sklearn.cluster import DBSCAN
 import bot_math as bm
-import random
 
 # Global variables
 mm_per_pix = 10
@@ -23,6 +22,9 @@ set_initial = 0
 initial_angle = 0
 rotate_flag = 1
 prev_scan_av = 0
+next_angle = 0
+scan = 0
+threshold = 0.1
 
 # ------------------------------------------ Functions ----------------------------------------------- #
 
@@ -122,7 +124,7 @@ def find_best(particles, scan_data, threshold):
         particle_scan_data = particle_scan(particle)  # Finds the distance data for the particles in mm
 
         if np.std(particle_scan_data) < 10:
-            if np.std(scan_data) < 10:
+            if np.std(scan_data) < 100:
                 best_particles.append(particle)
                 weights.append(1)
         else:
@@ -137,9 +139,10 @@ def find_best(particles, scan_data, threshold):
 def move_particles(particles, distance, delta_theta):
     valid_particles = []
     for i in range(len(particles)):
-        new_x = particles[i, 0] + distance * np.cos(particles[i, 2])
-        new_y = particles[i, 1] + distance * np.sin(particles[i, 2])
         new_theta = particles[i, 2] + delta_theta
+        new_x = particles[i, 0] + distance * np.cos(new_theta)
+        new_y = particles[i, 1] + distance * np.sin(new_theta)
+        
         new_theta = (new_theta + np.pi) % (2 * np.pi) - np.pi  # Keep θ between -π and π
 
         if is_circle_valid(new_x, new_y):
@@ -151,100 +154,131 @@ def count_clusters(particles, eps=10):  # Adjust eps based on your scale
     if len(particles) == 0:
         return 0
     
+    # Create an array with angles normalized
+    angles = particles[:, 2] % (2 * np.pi)  # Normalize angles to [0, 2π]
+    x_y_angles = np.column_stack((particles[:, :2], angles))  # Combine x, y, and angles
+
     # Use DBSCAN to find clusters
-    clustering = DBSCAN(eps=eps, min_samples=1).fit(particles[:, :2])  # Only consider x, y for clustering
+    clustering = DBSCAN(eps=eps, min_samples=1).fit(x_y_angles)  # Consider x, y and angle for clustering
     return len(set(clustering.labels_))  # Return the number of unique clusters
 
-def get_depth():
-    scan_data = d.read_img()
-    middle_data = scan_data[300:340]
-    depth = np.mean(middle_data)
-    return depth
-        
+
 def get_pose(bot_pose):
-    global set_initial, initial_angle, rotate_flag, prev_scan_av
+    global set_initial, initial_angle, rotate_flag, prev_scan_av, next_angle, scan, threshold
     
     if rotate_flag == 1:
+
+        if set_initial == 0:
+            initial_angle = sb.imuYaw - 1
+
         step_angle = 10
         current_angle = sb.imuYaw
         if (current_angle < step_angle) and current_angle >= 0:
             while np.floor(current_angle) != (np.floor(step_angle)+10):
+                if np.floor(current_angle) == np.floor(initial_angle) - 1:   # Break
+                    rotate_flag = 0 
                 current_angle = sb.imuYaw
                 mv.rotate_left()
-                
+        
         if set_initial == 0:
             initial_angle = sb.imuYaw - 1
-            set_initial = 1  
-                
-        if np.floor(current_angle) == np.floor(initial_angle):   # Break
-            set_initial = 0
-            rotate_flag = 0  
+            set_initial = 1
         
+        if np.floor(current_angle) == np.floor(initial_angle):   # Break
+            rotate_flag = 0   
+
         while np.floor(current_angle) % np.floor(step_angle) != 0:
             if np.floor(current_angle) == np.floor(initial_angle) - 1:   # Break
-                set_initial = 0
                 rotate_flag = 0 
             mv.rotate_left()
             current_angle = sb.imuYaw
             print(current_angle)
             print("Initial Angle", np.floor(initial_angle))
-            
+        
+        while np.floor(current_angle) % np.floor(step_angle) == 0:  
+            if np.floor(current_angle) == np.floor(initial_angle) - 1:   # Break
+                rotate_flag = 0 
+            mv.rotate_left()
+            current_angle = sb.imuYaw     
+
         mv.stop_moving()
         cv.waitKey(100)
+        current_angle = sb.imuYaw   # Return angle in rad
+
+        scan_data = d.read_img()
+        scan_data *= 1000
+        
+        middle_data = scan_data[240:400]
+        
+
+        standard_deviation = np.std(middle_data)
+        print(standard_deviation)
+
+        if standard_deviation < 15:
+
+            scan_av = np.mean(middle_data)
+            print("Scan Average: ", scan_av)
+
+            if scan_av > prev_scan_av:
+                next_angle = current_angle
+                scan = scan_av
+                print("Next Angle: ", next_angle)
+            prev_scan_av = scan_av
+        
+        bot_pose = (bot_pose[0], bot_pose[1], np.radians(current_angle))  # Return same x, y, because only rotating (no change in position), uptate angle (rad)
+
+        return bot_pose, 0
     
-        depth = get_depth()
-        
-        rand = random.randint(0,1)
-        while depth < 1.5:
-            if rand == 0:
-                mv.rotate_left()
-                depth = get_depth()
-            else:
-                mv.rotate_right()
-                depth = get_depth
-        
-        mv.stop_moving()
-        cv.waitKey(100) 
-        
-        next_angle = sb.imuYaw
-        
-    if rotate_flag == 0:
-        if bm.angle_difference(int(next_angle), int(current_angle)) > 0:
-            while int(current_angle) != int(next_angle):
+    elif rotate_flag == 0:
+
+        current_angle = sb.imuYaw
+
+        if bm.angle_difference(np.floor(next_angle), np.floor(current_angle)) > 0:
+            while np.floor(current_angle) != np.floor(next_angle):
                 mv.rotate_left()
                 print("Current Angle", current_angle)
                 print("New Heading", int(next_angle))
                 current_angle = sb.imuYaw
 
         else:
-            while int(current_angle) != int(next_angle):
+            while np.floor(current_angle) != np.floor(next_angle):
                 mv.rotate_right()
                 print("Current Angle", current_angle)
                 print("New Heading", int(next_angle))
                 current_angle = sb.imuYaw
         
-        mv.stop_moving()
-        cv.waitKey(100)
-        
-        distance = ((depth*10)-50)  
-          
-        mv.move_to_next_position((0, 0), (0, 0), next_angle, distance)
-        
-        new_x = np.cos(current_angle) * distance
-        new_y = np.sin(current_angle) * distance
-         
-        rotate_flag = 1
-        bot_pose = (new_x, new_y, current_angle)
+        distance = ((scan/10)-60)   # Give function cm
 
-    return bot_pose
+        mv.move_to_next_position(None, None, next_angle, distance)
+
+        new_x = int(bot_pose[0] + np.cos(np.radians(current_angle)) * distance)
+        new_y = int(bot_pose[1] - np.sin(np.radians(current_angle)) * distance)
+
+        print("X: ", new_x)
+        print("Y: ", new_y)
+        print("Distance: ", distance)
+
+        rotate_flag = 1
+        scan_av = 0
+        scan = 0
+        prev_scan_av = 0
+        next_angle = 0
+        set_initial = 0
+
+        threshold = 0
+
+        bot_pose = (new_x, new_y, np.radians(current_angle))
+
+        return bot_pose, distance   # (x, y, theta), scan data (mm)
+    
+    else:
+        return bot_pose, distance
     
 
 # -------------------------------------------MAIN------------------------------------------------------- #
 
 def filter(img, initial_pos, initial_angle):
-    global width, height, threshold_img, display_img  # Declare globals
-
-    threshold = 0
+    global width, height, threshold_img, display_img, threshold  # Declare globals
 
     if img is None:
         sys.exit("Could not read the image.")
@@ -281,21 +315,33 @@ def filter(img, initial_pos, initial_angle):
     while key != 27:  # Escape key to exit 
 
         
-        bot_pose, scan_data = get_pose(prev_pose)     # Moves the bot and returns the pose
+        bot_pose, distance = get_pose(prev_pose)     # Moves the bot and returns the pose
 
+        scan_data = d.read_img()
+        scan_data *= 1000
         scan_data[scan_data < 500] = 500
         scan_data = np.round(scan_data)
         
         #cv.waitKey(0)
         
         if timestep > 0:
-            delta_x = (bot_pose[0] - prev_pose[0]) / mm_per_pix   # Convert from mm to pixels
-            delta_y = (bot_pose[1] - prev_pose[1]) / mm_per_pix
-            delta_theta = bot_pose[2] - prev_pose[2]
-            #print(-delta_theta)
-            #cv.waitKey(0)
+            """delta_x = (bot_pose[0] - prev_pose[0])  # Convert from mm to pixels
+            delta_y = (bot_pose[1] - prev_pose[1])
+            
+            
             distance = np.sqrt(delta_x**2 + delta_y**2)
+
+            if distance > 0:
+                print(delta_x)
+                print(delta_y)
+                print(delta_theta)
+                print(distance)
+                cv.waitKey(0)"""
+
+            delta_theta = bot_pose[2] - prev_pose[2]
             particles = move_particles(particles, distance, -delta_theta)
+        
+        draw_circles(particles)
 
         particles, weights = find_best(particles, scan_data, threshold)
 
@@ -311,8 +357,8 @@ def filter(img, initial_pos, initial_angle):
         if len(particles) < 100:
             particles = resample_particles(particles, weights)
             threshold += 0.05  # Increase threshold everytime we resample
-            if threshold > 0.5:
-                threshold = 0.5   # Limit the threshold
+            if threshold > 0.3:
+                threshold = 0.3   # Limit the threshold
             print(threshold)
 
             # Check for clusters
@@ -325,9 +371,9 @@ def filter(img, initial_pos, initial_angle):
                 av_angle = np.mean(particles[:, 2])  # Average angles
 
                 return av_x, av_y, av_angle
-
+            
         draw_circles(particles)
-        
+
         prev_pose = bot_pose
 
         timestep += 1
