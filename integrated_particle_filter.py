@@ -9,6 +9,7 @@ import slamBotHD as sb
 import movement as mv
 from sklearn.cluster import DBSCAN
 import bot_math as bm
+import random
 
 # Global variables
 mm_per_pix = 10
@@ -154,6 +155,12 @@ def count_clusters(particles, eps=10):  # Adjust eps based on your scale
     clustering = DBSCAN(eps=eps, min_samples=1).fit(particles[:, :2])  # Only consider x, y for clustering
     return len(set(clustering.labels_))  # Return the number of unique clusters
 
+def get_depth():
+    scan_data = d.read_img()
+    middle_data = scan_data[300:340]
+    depth = np.mean(middle_data)
+    return depth
+        
 def get_pose(bot_pose):
     global set_initial, initial_angle, rotate_flag, prev_scan_av
     
@@ -164,15 +171,15 @@ def get_pose(bot_pose):
             while np.floor(current_angle) != (np.floor(step_angle)+10):
                 current_angle = sb.imuYaw
                 mv.rotate_left()
-        
+                
         if set_initial == 0:
             initial_angle = sb.imuYaw - 1
-            set_initial = 1
-        
+            set_initial = 1  
+                
         if np.floor(current_angle) == np.floor(initial_angle):   # Break
             set_initial = 0
-            rotate_flag = 0   
-
+            rotate_flag = 0  
+        
         while np.floor(current_angle) % np.floor(step_angle) != 0:
             if np.floor(current_angle) == np.floor(initial_angle) - 1:   # Break
                 set_initial = 0
@@ -181,37 +188,27 @@ def get_pose(bot_pose):
             current_angle = sb.imuYaw
             print(current_angle)
             print("Initial Angle", np.floor(initial_angle))
-        
-        while np.floor(current_angle) % np.floor(step_angle) == 0:  
-            mv.rotate_left()
-            current_angle = sb.imuYaw     
-
+            
         mv.stop_moving()
         cv.waitKey(100)
-        current_angle = np.radians(sb.imuYaw)   # Return angle in rad
-
-        scan_data = d.read_img()
-        scan_data *= 1000
+    
+        depth = get_depth()
         
-        middle_data = scan_data[300:340]
+        rand = random.randint(0,1)
+        while depth < 1.5:
+            if rand == 0:
+                mv.rotate_left()
+                depth = get_depth()
+            else:
+                mv.rotate_right()
+                depth = get_depth
         
-
-        standard_deviation = np.std(middle_data)
-        print(standard_deviation)
-
-        if standard_deviation < 10:
-
-            scan_av = np.mean(scan_data)
-
-            if scan_av > prev_scan_av:
-                next_angle = current_angle
-
-            prev_scan_av = scan_av
+        mv.stop_moving()
+        cv.waitKey(100) 
         
-        bot_pose = (bot_pose[0], bot_pose[1], current_angle)
-
+        next_angle = sb.imuYaw
+        
     if rotate_flag == 0:
-
         if bm.angle_difference(int(next_angle), int(current_angle)) > 0:
             while int(current_angle) != int(next_angle):
                 mv.rotate_left()
@@ -226,20 +223,20 @@ def get_pose(bot_pose):
                 print("New Heading", int(next_angle))
                 current_angle = sb.imuYaw
         
-        distance = ((scan_av/10)-50)
-
+        mv.stop_moving()
+        cv.waitKey(100)
+        
+        distance = ((depth*10)-50)  
+          
         mv.move_to_next_position((0, 0), (0, 0), next_angle, distance)
-
+        
         new_x = np.cos(current_angle) * distance
         new_y = np.sin(current_angle) * distance
-
+         
         rotate_flag = 1
-        scan_av = 0
-        prev_scan_av = 0
-
         bot_pose = (new_x, new_y, current_angle)
 
-    return bot_pose, scan_data    # (x, y, theta)
+    return bot_pose
     
 
 # -------------------------------------------MAIN------------------------------------------------------- #
