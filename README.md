@@ -23,12 +23,11 @@ This project demonstrates SLAM (Simultaneous Localisation and Mapping) using a *
 - **Pathfinding**: A* algorithm for generating obstacle-free paths
 - **Control**: PID loop for movement correction
 
-## Navigation Output
-![Map with A* Path](output.png)
+## Mapping Output
+![Map with A* Path](map.png)
 
-- The green dot indicates the start (landmark location)
-- The red line shows the A* path computed to the open goal area
-
+- The green dot indicates the bot's pose
+- 
 ## Landmark Detection
 ![Landmarks](landmarks.png)
 
