@@ -9,11 +9,11 @@ This project demonstrates SLAM (Simultaneous Localisation and Mapping) using a *
 
 - **Platform:** Quanser QBot (based on iRobot Create)
 - **Sensors:** Depth + color camera (e.g., Kinect/Xbox 360)
-- **Processing:** Onboard SBC running Python
+- **Processing:** Onboard Raspberry Pi running Python
 
 ## Objectives
 - Build a 2D map of the environment
-- Identify a unique landmark (green cone)
+- Identify a unique landmark
 - Localise using particle filter
 - Plan and follow an A* path to a user-selected open space
 
@@ -24,7 +24,7 @@ This project demonstrates SLAM (Simultaneous Localisation and Mapping) using a *
 - **Control**: PID loop for movement correction
 
 ## Navigation Output
-![Map with A* Path](Map_with_path.png)
+![Map with A* Path](output.png)
 
 - The green dot indicates the start (landmark location)
 - The red line shows the A* path computed to the open goal area
