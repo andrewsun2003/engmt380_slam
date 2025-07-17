@@ -30,16 +30,23 @@ This project demonstrates SLAM (Simultaneous Localisation and Mapping) using a *
 
 ## Repository Structure
 ```
-📁 project-root/
-├── quanser_robot.png         # Robot image
-├── Map.png                   # Original SLAM map
-├── Map_with_path.png         # Map with A* path overlay
-├── next_locations.py         # Open space segmentation
-├── compare_maps.py           # Landmark detection + map merging
-├── particle_filter.py        # Localisation via Monte Carlo method
-├── astar_pathfinding.py      # A* pathfinding implementation
-├── controller.py             # PID-based movement control
-└── README.md                 # This file
+engmt380_slam-main/
+├── engmt380_slam-main/
+│   ├── README.md
+│   ├── SlambotHD_readme.txt
+│   ├── assignment3.py
+│   ├── astar.py
+│   ├── bot_math.py
+│   ├── compare_maps.py
+│   ├── cone_extraction.py
+│   ├── distance.py
+│   ├── integrated_particle_filter.py
+│   ├── main.py
+│   ├── map.png
+│   ├── movement.py
+│   ├── next_locations.py
+│   ├── particle_main.py
+│   ├── particle_test.py
 ```
 
 ## Acknowledgements
