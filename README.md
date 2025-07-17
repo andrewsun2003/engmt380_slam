@@ -1,3 +1,4 @@
+
 # Quanser SLAM Navigation Project
 
 ## Overview
@@ -7,17 +8,17 @@ This project demonstrates SLAM (Simultaneous Localisation and Mapping) using a *
 ![Quanser Bot](quanser_robot.png)
 
 - **Platform:** Quanser QBot (based on iRobot Create)
-- **Sensors:** Depth camera (e.g., Kinect/Xbox 360)
-- **Processing:** Onboard Raspberry Pi running Python
+- **Sensors:** Depth + color camera (e.g., Kinect/Xbox 360)
+- **Processing:** Onboard SBC running Python
 
 ## Objectives
 - Build a 2D map of the environment
-- Identify landmarks and frontiers for navigation
+- Identify a unique landmark (green cone)
 - Localise using particle filter
 - Plan and follow an A* path to a user-selected open space
 
 ## Key Algorithms
-- **Image Processing**: OpenCV-based segmentation for landmark and frontier detection
+- **Image Processing**: OpenCV-based segmentation for obstacle and landmark detection
 - **Localisation**: Monte Carlo particle filter for pose estimation
 - **Pathfinding**: A* algorithm for generating obstacle-free paths
 - **Control**: PID loop for movement correction
@@ -25,8 +26,13 @@ This project demonstrates SLAM (Simultaneous Localisation and Mapping) using a *
 ## Navigation Output
 ![Map with A* Path](Map_with_path.png)
 
-- The green dot indicates the bot's pose
+- The green dot indicates the start (landmark location)
 - The red line shows the A* path computed to the open goal area
+
+## Landmark Detection
+![Landmarks](landmarks.png)
+
+- Blue dots indicate detected corners/landmarks in the environment
 
 ## Repository Structure
 ```
